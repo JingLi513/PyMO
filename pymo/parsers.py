@@ -8,8 +8,15 @@ Based on: https://gist.github.com/johnfredcee/2007503
 
 '''
 import re
+import logging
 import numpy as np
 from pymo.data import Joint, MocapData
+
+logger = logging.getLogger()
+fh = logging.FileHandler("log.txt",encoding="utf-8")
+sh = logging.StreamHandler()
+logger.addHandler(fh)
+logger.addHandler(sh)
 
 class BVHScanner():
     '''
@@ -81,7 +88,9 @@ class BVHParser():
         tokens, remainder = self.scanner.scan(raw_contents)
         self._parse_hierarchy(tokens)
         self.current_token = self.current_token + 1
-        self._parse_motion(tokens)
+        result = self._parse_motion(tokens)
+        if result == -1:
+            logger.warning(filename)
         
         self.data.skeleton = self._skeleton
         self.data.channel_names = self._motion_channels
@@ -217,7 +226,7 @@ class BVHParser():
         if bvh[self.current_token][1] != 'Frames':
             return None
         self.current_token = self.current_token + 1
-        frame_count = int(bvh[self.current_token][1])
+        frame_count = int(float(bvh[self.current_token][1]))
         self.current_token = self.current_token + 1
         if bvh[self.current_token][1] != 'Frame':
             return None
@@ -232,11 +241,15 @@ class BVHParser():
         self.current_token = self.current_token + 1
        
         frame_time = 0.0
-        self._motions = [()] * frame_count
+        self._motions = []
+        # self._motions = [()] * frame_count
         for i in range(frame_count):
             channel_values = []
             for channel in self._motion_channels:
                 channel_values.append((channel[0], channel[1], float(bvh[self.current_token][1])))
                 self.current_token = self.current_token + 1
-            self._motions[i] = (frame_time, channel_values)
+            self._motions.append((frame_time, channel_values))
             frame_time = frame_time + frame_rate
+            if self.current_token > len(bvh):
+                return -1
+        return 0
